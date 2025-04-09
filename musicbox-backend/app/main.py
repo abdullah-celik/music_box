@@ -39,3 +39,6 @@ async def search_album_endpoint(query: str):
 def new_releases():
     return get_new_releases()
 
+@app.get("/artist/{artist_id}")
+def artist(artist_id: str):
+    return get_artist(artist_id)

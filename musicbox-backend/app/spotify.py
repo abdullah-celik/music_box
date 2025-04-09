@@ -14,60 +14,81 @@ def get_access_token():
     response = requests.post(url, headers=headers, data=data)
     return response.json().get("access_token")
 
-"""def search_albums(query: str):
-    url = f"https://api.spotify.com/v1/search"
-    headers = {"Authorization": get_access_token()}
-    params = {
-        "q": query,
-        "type": "album",
-        "limit": 10,
-    }
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
+def get_artist(artist_id):
+    token = get_access_token()
+    response = requests.get(
+        f"https://api.spotify.com/v1/artists/{artist_id}",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    return response.json()
 
-    albums = []
-    for item in data.get("albums", {}).get("items", []):
-        albums.append({
-            "name": item["name"],
-            "artist": item["artists"][0]["name"],
-            "image": item["images"][0]["url"] if item["images"] else None,
-            "spotify_url": item["external_urls"]["spotify"],
-            "release_date": item["release_date"]
-        })
-
-    return {"albums": albums}"""
-    
 def search_albums(query: str):
     try:
         token = get_access_token()
         url = "https://api.spotify.com/v1/search"
-        headers = {"Authorization": get_access_token()}
+        headers = {"Authorization": f"Bearer {token}"}
+        #"Authorization": f"Bearer {token}"
         params = {
             "q": query,
             "type": "album",
             "limit": 10,
             "market": "US"
         }
+        
+        # Add debug logging
+        print(f"Making request to Spotify API with token: {token[:15]}...")
+        
         response = requests.get(url, headers=headers, params=params)
+        
+        # Check for HTTP errors
         response.raise_for_status()
+        
         data = response.json()
         
+        # Verify response structure
+        if not data.get('albums'):
+            raise ValueError("Unexpected API response format - missing 'albums' key")
+            
         return {
             "albums": {
-                "items": data.get("albums", {}).get("items", []),
-                "total": data.get("albums", {}).get("total", 0)
+                "items": data['albums'].get('items', []),
+                "total": data['albums'].get('total', 0)
             }
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+        print(f"Response content: {http_err.response.text}")
+        raise HTTPException(
+            status_code=http_err.response.status_code,
+            detail=f"Spotify API error: {http_err.response.text}"
+        )
 
+        
 def get_album(album_id):
     token = get_access_token()
     response = requests.get(
         f"https://api.spotify.com/v1/albums/{album_id}",
         headers={"Authorization": f"Bearer {token}"}
     )
-    return response.json()
+    data = response.json()
+
+    return {
+        "name": data["name"],
+        "release_date": data["release_date"],
+        "label": data.get("label"),
+        "total_tracks": data["total_tracks"],
+        "images": data["images"],
+        "artists": data["artists"],
+        "tracks": [
+            {
+                "name": track["name"],
+                "duration_ms": track["duration_ms"],
+                "track_number": track["track_number"],
+                "preview_url": track["preview_url"]
+            } for track in data["tracks"]["items"]
+        ]
+    }
 
 def get_new_releases():
     token = get_access_token()
